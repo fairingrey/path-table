@@ -49,11 +49,11 @@ struct Wildcard<R> {
 
 /// For a successful match, this structure says how any wildcard segments were matched.
 #[derive(Debug)]
-pub struct RouteMatch<'a> {
+pub struct RouteMatch {
     /// Wildcard matches in the order they appeared in the path.
-    pub vec: Vec<&'a str>,
+    pub vec: Vec<String>,
     /// Named wildcard matches, indexed by name.
-    pub map: HashMap<&'a str, &'a str>,
+    pub map: HashMap<String, String>,
 }
 
 impl<R> std::fmt::Debug for PathTable<R> {
@@ -130,10 +130,10 @@ impl<R> PathTable<R> {
     }
 
     /// Determine which resource, if any, the concrete `path` should be routed to.
-    pub fn route<'a>(&'a self, path: &'a str) -> Option<(&'a R, RouteMatch<'a>)> {
+    pub fn route<'a>(&'a self, path: &'a str) -> Option<(&'a R, RouteMatch)> {
         let mut table = self;
-        let mut params = Vec::new();
-        let mut param_map = HashMap::new();
+        let mut params: Vec<String> = Vec::new();
+        let mut param_map: HashMap<String, String> = HashMap::new();
 
         // Find all segments with their indices.
         let segment_iter = path
@@ -161,10 +161,10 @@ impl<R> PathTable<R> {
                     false
                 };
 
-                params.push(segment);
+                params.push(segment.to_string());
 
                 if !wildcard.name.is_empty() {
-                    param_map.insert(&*wildcard.name, segment);
+                    param_map.insert(wildcard.name.to_string(), segment.to_string());
                 }
 
                 table = &wildcard.table;
@@ -180,10 +180,10 @@ impl<R> PathTable<R> {
         if table.accept.is_none() {
             if let Some(wildcard) = &table.wildcard {
                 if wildcard.count_mod == WildcardKind::CatchAll {
-                    params.push("");
+                    params.push(String::new());
 
                     if !wildcard.name.is_empty() {
-                        param_map.insert(&*wildcard.name, "");
+                        param_map.insert(wildcard.name.to_string(), String::new());
                     }
 
                     table = &wildcard.table;
@@ -507,13 +507,22 @@ mod tests {
 
         let (_, params) = table.route("foo/a").unwrap();
         assert_eq!(params.vec, &["a"]);
-        assert_eq!(params.map, [("foo", "a")].iter().cloned().collect());
+        assert_eq!(
+            params.map,
+            [("foo", "a")]
+                .iter()
+                .map(|(a, b)| (String::from(*a), String::from(*b)))
+                .collect()
+        );
 
         let (_, params) = table.route("foo/a/b").unwrap();
         assert_eq!(params.vec, &["a", "b"]);
         assert_eq!(
             params.map,
-            [("foo", "a"), ("bar", "b")].iter().cloned().collect()
+            [("foo", "a"), ("bar", "b")]
+                .iter()
+                .map(|(a, b)| (String::from(*a), String::from(*b)))
+                .collect()
         );
 
         let (_, params) = table.route("c").unwrap();
@@ -532,7 +541,13 @@ mod tests {
         let (&id, params) = table.route("foo/a/b").unwrap();
         assert_eq!(id, 0);
         assert_eq!(params.vec, &["a/b"]);
-        assert_eq!(params.map, [("foo", "a/b")].iter().cloned().collect());
+        assert_eq!(
+            params.map,
+            [("foo", "a/b")]
+                .iter()
+                .map(|(a, b)| (String::from(*a), String::from(*b)))
+                .collect()
+        );
 
         let (&id, params) = table.route("bar/a/b").unwrap();
         assert_eq!(id, 1);
